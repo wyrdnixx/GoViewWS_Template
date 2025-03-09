@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -38,53 +37,36 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		} */
 }
 
-// WebSocket handler
+// handleWebSocket function upgrades the HTTP connection to WebSocket
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil) // Upgrade HTTP to WebSocket
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Upgrade:", err)
+		log.Println("WebSocket upgrade error:", err)
 		return
-	} else {
-		wsconnections.C = append(wsconnections.C, conn)
-		log.Printf("Active Connections: %s", wsconnections.C[0].RemoteAddr())
 	}
 	defer conn.Close()
 
 	for {
-		// Read JSON message from client
-		_, msg, err := conn.ReadMessage()
+		// Read message from WebSocket client
+		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Println("Read:", err)
+			log.Println("read error:", err)
 			break
 		}
 
-		// Unmarshal the received message (JSON) into a struct
-		var receivedMessage Message
-		err = json.Unmarshal(msg, &receivedMessage)
-		// Errorhandling JSON processing
+		// Process the incoming message
+		response, err := processMessage(message)
 		if err != nil {
-			log.Println("Unmarshal:", err)
-			//break
-			// Write the JSON response back to the client
-			responseMessage := Message{
-				Type:    "err",
-				Content: "failure on JSON Unmarshal client message",
-			}
-			// Marshal the response message to JSON
-			responseJSON, err := json.Marshal(responseMessage)
-			if err != nil {
-				log.Println("Marshal:", err)
-				break
-			}
-			err = conn.WriteMessage(websocket.TextMessage, responseJSON)
-			if err != nil {
-				log.Println("Write:", err)
-				break
-			}
+			log.Println("Error processing message:", err)
+			break
 		}
 
-		processMessage(conn, receivedMessage)
-
+		// Send the response back to the client
+		err = conn.WriteMessage(websocket.TextMessage, response)
+		if err != nil {
+			log.Println("write error:", err)
+			break
+		}
 	}
 }
 
